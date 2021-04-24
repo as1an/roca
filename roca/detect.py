@@ -64,6 +64,7 @@ LOG_FORMAT = '%(asctime)s [%(process)d] %(levelname)s %(message)s'
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level=logging.INFO, fmt=LOG_FORMAT)
+detected_file = open("detected.txt", "w")
 
 
 #
@@ -1850,7 +1851,14 @@ class RocaFingerprinter(object):
         try:
             lines = [x.strip() for x in data.split(bytes(b'\n'))]
             for idx, line in enumerate(lines):
-                sub = self.process_mod_line(line, name, idx)
+                if not line:
+                    continue
+                key_info = line.split(bytes(b'|'))
+                sub = self.process_mod_line(key_info[0], name, idx, True)
+                filtered = list(filter(lambda x: x is not None and x.marked, sub))
+                if filtered:
+                    weak_key = key_info[0].decode("utf8") + "|" + key_info[1].decode("utf8") + "|" + key_info[2].decode("utf8")
+                    detected_file.write(weak_key + "\n")
                 ret.append(sub)
 
         except Exception as e:
@@ -1858,7 +1866,7 @@ class RocaFingerprinter(object):
             self.trace_logger.log(e)
         return ret
 
-    def process_mod_line(self, data, name, idx, aux=None):
+    def process_mod_line(self, data, name, idx, aux=None, is_hex=True):
         """
         Processes one line mod
         :param data:
@@ -1872,14 +1880,18 @@ class RocaFingerprinter(object):
 
         ret = []
         try:
-            if self.args.key_fmt_base64 or self.re_match(r'^[a-zA-Z0-9+/=\s\t]+$', data):
-                ret.append(self.process_mod_line_num(strip_spaces(data), name, idx, 'base64', aux))
+            if not is_hex:
 
-            if self.args.key_fmt_hex or self.re_match(r'^(0x)?[a-fA-F0-9\s\t]+$', data):
+                if self.args.key_fmt_base64 or self.re_match(r'^[a-zA-Z0-9+/=\s\t]+$', data):
+                    ret.append(self.process_mod_line_num(strip_spaces(data), name, idx, 'base64', aux))
+
+                if self.args.key_fmt_hex or self.re_match(r'^(0x)?[a-fA-F0-9\s\t]+$', data):
+                    ret.append(self.process_mod_line_num(strip_spaces(data), name, idx, 'hex', aux))
+
+                if self.args.key_fmt_dec or self.re_match(r'^[0-9\s\t]+$', data):
+                    ret.append(self.process_mod_line_num(strip_spaces(data), name, idx, 'dec', aux))
+            else:
                 ret.append(self.process_mod_line_num(strip_spaces(data), name, idx, 'hex', aux))
-
-            if self.args.key_fmt_dec or self.re_match(r'^[0-9\s\t]+$', data):
-                ret.append(self.process_mod_line_num(strip_spaces(data), name, idx, 'dec', aux))
 
         except Exception as e:
             logger.debug('Error in line mod processing %s idx %s : %s' % (name, idx, e))
@@ -2136,7 +2148,7 @@ class RocaFingerprinter(object):
         Entry point after argument processing.
         :return:
         """
-        self.do_print = True
+        self.do_print = False
         if self.args.old:
             self.switch_fingerprint_method(True)
 
@@ -2251,8 +2263,7 @@ class RocaFingerprinter(object):
 def main():
     app = RocaFingerprinter()
     app.main()
-
+    detected_file.close()
 
 if __name__ == '__main__':
     main()
-
