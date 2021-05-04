@@ -1849,6 +1849,7 @@ class RocaFingerprinter(object):
         """
         ret = []
         try:
+            amount = 0
             lines = [x.strip() for x in data.split(bytes(b'\n'))]
             for idx, line in enumerate(lines):
                 if not line:
@@ -1859,8 +1860,9 @@ class RocaFingerprinter(object):
                 if filtered:
                     weak_key = key_info[0].decode("utf8") + "|" + key_info[1].decode("utf8") + "|" + key_info[2].decode("utf8")
                     detected_file.write(weak_key + "\n")
+                    amount += 1
                 ret.append(sub)
-
+            detected_file.write(f'{name} : {amount}\n')
         except Exception as e:
             logger.debug('Error in line mod file processing %s : %s' % (name, e))
             self.trace_logger.log(e)
